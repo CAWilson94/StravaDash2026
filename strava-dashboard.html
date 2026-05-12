@@ -1,0 +1,697 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Strava Weekly Dashboard</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+  <style>
+    :root {
+      --orange: #FC4C02;
+      --orange-light: #ff6e35;
+      --bg: #0f0f0f;
+      --card: #1a1a1a;
+      --card2: #222;
+      --border: #2a2a2a;
+      --text: #f0f0f0;
+      --muted: #888;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, sans-serif;
+      min-height: 100vh;
+    }
+
+    /* ── SETUP ─────────────────────────────────────────── */
+    #setup {
+      max-width: 580px;
+      margin: 0 auto;
+      padding: 60px 20px;
+    }
+    .setup-hero {
+      text-align: center;
+      margin-bottom: 36px;
+    }
+    .setup-hero h1 {
+      font-size: 2.4rem;
+      font-weight: 800;
+      color: var(--orange);
+      letter-spacing: -0.02em;
+    }
+    .setup-hero p {
+      color: var(--muted);
+      margin-top: 8px;
+      font-size: 1rem;
+    }
+    .setup-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 36px;
+    }
+    .step { margin-bottom: 26px; }
+    .step-hd {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 10px;
+    }
+    .step-num {
+      width: 26px; height: 26px;
+      border-radius: 50%;
+      background: var(--orange);
+      color: #fff;
+      font-size: 0.8rem;
+      font-weight: 700;
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .step-hd h3 { font-size: 0.95rem; font-weight: 600; }
+    .step-body { padding-left: 38px; }
+    .step-body p {
+      color: var(--muted);
+      font-size: 0.88rem;
+      line-height: 1.65;
+      margin-bottom: 10px;
+    }
+    .step-body a { color: var(--orange); text-decoration: none; }
+    .step-body a:hover { text-decoration: underline; }
+    .step-body code {
+      background: rgba(255,255,255,0.07);
+      border-radius: 4px;
+      padding: 1px 5px;
+      font-size: 0.82rem;
+      color: #ccc;
+    }
+    .divider { border: none; border-top: 1px solid var(--border); margin: 22px 0; }
+    .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+    label { display: block; font-size: 0.76rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; margin-bottom: 5px; }
+    input[type="text"], input[type="password"] {
+      width: 100%;
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: 10px 13px;
+      color: var(--text);
+      font-size: 0.93rem;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    input:focus { border-color: var(--orange); }
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 7px;
+      padding: 11px 22px;
+      border-radius: 10px;
+      border: none;
+      cursor: pointer;
+      font-size: 0.92rem;
+      font-weight: 600;
+      transition: all 0.18s;
+    }
+    .btn-primary { background: var(--orange); color: #fff; }
+    .btn-primary:hover { background: var(--orange-light); transform: translateY(-1px); }
+    .btn-ghost {
+      background: var(--card2);
+      color: var(--text);
+      border: 1px solid var(--border);
+      font-size: 0.85rem;
+      padding: 8px 16px;
+    }
+    .btn-ghost:hover { background: var(--border); }
+    .btn-full { width: 100%; margin-top: 14px; }
+    .url-hint {
+      background: rgba(252,76,2,0.07);
+      border: 1px solid rgba(252,76,2,0.2);
+      border-radius: 8px;
+      padding: 8px 12px;
+      font-family: monospace;
+      font-size: 0.78rem;
+      color: #ffa07a;
+      margin-top: 6px;
+      word-break: break-all;
+    }
+    #setup-err {
+      display: none;
+      background: rgba(244,67,54,0.1);
+      border: 1px solid rgba(244,67,54,0.3);
+      border-radius: 9px;
+      padding: 12px 16px;
+      color: #ef9a9a;
+      font-size: 0.87rem;
+      margin-top: 16px;
+    }
+
+    /* ── DASHBOARD ─────────────────────────────────────── */
+    #dash { display: none; }
+    .dash-nav {
+      background: var(--card);
+      border-bottom: 1px solid var(--border);
+      padding: 14px 24px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .dash-logo { font-size: 1.2rem; font-weight: 800; color: var(--orange); }
+    .week-ctrl { display: flex; align-items: center; gap: 10px; }
+    .week-lbl {
+      font-size: 0.92rem;
+      font-weight: 600;
+      min-width: 185px;
+      text-align: center;
+    }
+    .arr-btn {
+      width: 34px; height: 34px;
+      background: var(--card2);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 1.1rem;
+      display: flex; align-items: center; justify-content: center;
+      transition: background 0.15s;
+    }
+    .arr-btn:hover { background: var(--border); }
+
+    .dash-body {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px;
+    }
+
+    /* Summary cards */
+    .cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(165px, 1fr));
+      gap: 14px;
+      margin-bottom: 22px;
+    }
+    .s-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 18px 20px;
+      transition: transform 0.18s;
+    }
+    .s-card:hover { transform: translateY(-2px); }
+    .s-icon { font-size: 1.3rem; margin-bottom: 10px; }
+    .s-val { font-size: 1.75rem; font-weight: 800; line-height: 1; margin-bottom: 3px; }
+    .s-lbl { font-size: 0.73rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.06em; }
+    .s-sub { font-size: 0.77rem; color: var(--muted); margin-top: 2px; }
+
+    /* Charts */
+    .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 22px; }
+    @media (max-width: 720px) { .charts { grid-template-columns: 1fr; } .row2 { grid-template-columns: 1fr; } }
+    .chart-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      padding: 20px;
+    }
+    .chart-ttl {
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+      margin-bottom: 14px;
+    }
+    .chart-wrap { position: relative; height: 195px; }
+
+    /* Daily summary row */
+    .daily-grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 8px;
+      margin-bottom: 22px;
+    }
+    .day-cell {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 12px 8px;
+      text-align: center;
+    }
+    .day-cell.active { border-color: rgba(252,76,2,0.4); background: rgba(252,76,2,0.05); }
+    .day-name { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+    .day-cal { font-size: 1rem; font-weight: 700; color: var(--orange); line-height: 1; }
+    .day-cal-lbl { font-size: 0.65rem; color: var(--muted); margin-top: 1px; }
+    .day-time { font-size: 0.8rem; font-weight: 600; margin-top: 7px; }
+    .day-time-lbl { font-size: 0.65rem; color: var(--muted); }
+
+    /* Activities */
+    .acts-card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 13px;
+      overflow: hidden;
+    }
+    .acts-hdr {
+      padding: 16px 20px;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.78rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      color: var(--muted);
+    }
+    .act-row {
+      padding: 13px 20px;
+      border-bottom: 1px solid var(--border);
+      display: grid;
+      grid-template-columns: 2.2fr 0.9fr 0.9fr 0.9fr 0.9fr 0.9fr;
+      align-items: center;
+      gap: 10px;
+      transition: background 0.12s;
+    }
+    .act-row:last-child { border-bottom: none; }
+    .act-row:hover { background: rgba(255,255,255,0.02); }
+    .act-name-col { display: flex; align-items: center; gap: 10px; }
+    .act-ic {
+      width: 34px; height: 34px;
+      border-radius: 8px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 1.05rem;
+      flex-shrink: 0;
+    }
+    .act-nm h4 { font-size: 0.88rem; font-weight: 600; }
+    .act-nm p { font-size: 0.75rem; color: var(--muted); margin-top: 1px; }
+    .act-stat { text-align: right; }
+    .act-stat-v { font-size: 0.88rem; font-weight: 600; }
+    .act-stat-l { font-size: 0.7rem; color: var(--muted); margin-top: 1px; }
+    .empty { padding: 56px 20px; text-align: center; color: var(--muted); }
+    .empty-ic { font-size: 2.6rem; margin-bottom: 10px; }
+    .spinner-wrap { padding: 56px 20px; text-align: center; color: var(--muted); }
+    .spin {
+      width: 38px; height: 38px;
+      border: 3px solid var(--border);
+      border-top-color: var(--orange);
+      border-radius: 50%;
+      animation: spin 0.75s linear infinite;
+      margin: 0 auto 14px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    #dash-err {
+      display: none;
+      background: rgba(244,67,54,0.1);
+      border: 1px solid rgba(244,67,54,0.3);
+      border-radius: 10px;
+      padding: 13px 17px;
+      color: #ef9a9a;
+      font-size: 0.88rem;
+      margin-bottom: 18px;
+    }
+  </style>
+</head>
+<body>
+
+<!-- ══════════════════ SETUP ══════════════════ -->
+<div id="setup">
+  <div class="setup-hero">
+    <h1>🏃 Strava Dashboard</h1>
+    <p>Connect your account to see your weekly training stats</p>
+  </div>
+
+  <div class="setup-card">
+    <div class="step">
+      <div class="step-hd"><div class="step-num">1</div><h3>Create a Strava API App</h3></div>
+      <div class="step-body">
+        <p>Go to <a href="https://www.strava.com/settings/api" target="_blank">strava.com/settings/api</a> and create a new application. The name can be anything (e.g. <em>My Dashboard</em>). Set the <strong>Authorization Callback Domain</strong> to <code>localhost</code>.</p>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="step">
+      <div class="step-hd"><div class="step-num">2</div><h3>Enter your credentials</h3></div>
+      <div class="step-body">
+        <div class="row2">
+          <div><label>Client ID</label><input type="text" id="cid" placeholder="e.g. 123456"></div>
+          <div><label>Client Secret</label><input type="password" id="csecret" placeholder="••••••••••••"></div>
+        </div>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="step">
+      <div class="step-hd"><div class="step-num">3</div><h3>Authorise your Strava account</h3></div>
+      <div class="step-body">
+        <p>Click below. Strava opens in a new tab — click <strong>Authorise</strong>. You'll land on a page that won't load. That's fine! Copy the <strong>full URL</strong> from your browser's address bar.</p>
+        <p>It will look like:</p>
+        <div class="url-hint">http://localhost/exchange_token?state=&amp;code=abc123xyz&amp;scope=...</div>
+        <button class="btn btn-primary" onclick="openAuth()" style="margin-top:12px;">🔗 Open Strava Authorisation</button>
+      </div>
+    </div>
+
+    <hr class="divider">
+
+    <div class="step">
+      <div class="step-hd"><div class="step-num">4</div><h3>Paste the redirect URL &amp; connect</h3></div>
+      <div class="step-body">
+        <label>Redirect URL</label>
+        <input type="text" id="rurl" placeholder="http://localhost/exchange_token?state=&code=...">
+        <button class="btn btn-primary btn-full" onclick="connect()">🚀 Connect to Strava</button>
+      </div>
+    </div>
+
+    <div id="setup-err"></div>
+  </div>
+</div>
+
+<!-- ══════════════════ DASHBOARD ══════════════════ -->
+<div id="dash">
+  <nav class="dash-nav">
+    <div class="dash-logo">🏃 Training Week</div>
+    <div class="week-ctrl">
+      <button class="arr-btn" onclick="shiftWeek(-1)">‹</button>
+      <div class="week-lbl" id="wlbl">—</div>
+      <button class="arr-btn" onclick="shiftWeek(1)">›</button>
+    </div>
+    <button class="btn btn-ghost" onclick="signOut()">Disconnect</button>
+  </nav>
+
+  <div class="dash-body">
+    <div id="dash-err"></div>
+
+    <div id="loading" class="spinner-wrap">
+      <div class="spin"></div>
+      <p id="loading-msg">Fetching your activities…</p>
+    </div>
+
+    <div id="dash-main" style="display:none">
+      <!-- Summary cards -->
+      <div class="cards" id="cards"></div>
+
+      <!-- Daily breakdown -->
+      <div class="daily-grid" id="daily-grid"></div>
+
+      <!-- Charts -->
+      <div class="charts">
+        <div class="chart-card">
+          <div class="chart-ttl">🔥 Calories per Day</div>
+          <div class="chart-wrap"><canvas id="cal-chart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-ttl">⏱️ Active Minutes per Day</div>
+          <div class="chart-wrap"><canvas id="time-chart"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Activity list -->
+      <div class="acts-card">
+        <div class="acts-hdr">Activities this week</div>
+        <div id="act-list"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// ── State ────────────────────────────────────────────────────
+let token = null, rtoken = null, cid = null, csec = null;
+let weekStart = mondayOf(new Date());
+let calChart = null, tmChart = null;
+
+// ── Auth ─────────────────────────────────────────────────────
+function getRedirectUri() {
+  // Auto-detect: use current origin when hosted, fall back to localhost for local file use
+  if (window.location.protocol === 'file:') return 'http://localhost/exchange_token';
+  return window.location.origin + '/exchange_token';
+}
+
+function openAuth() {
+  cid = document.getElementById('cid').value.trim();
+  csec = document.getElementById('csecret').value.trim();
+  if (!cid || !csec) { setErr('setup', 'Enter your Client ID and Client Secret first.'); return; }
+  const uri = encodeURIComponent(getRedirectUri());
+  window.open(`https://www.strava.com/oauth/authorize?client_id=${cid}&redirect_uri=${uri}&response_type=code&approval_prompt=auto&scope=activity:read_all`, '_blank');
+}
+
+async function connect() {
+  cid = document.getElementById('cid').value.trim();
+  csec = document.getElementById('csecret').value.trim();
+  const raw = document.getElementById('rurl').value.trim();
+  if (!cid || !csec) { setErr('setup', 'Enter your Client ID and Client Secret.'); return; }
+  if (!raw) { setErr('setup', 'Paste the redirect URL from step 3.'); return; }
+  let code;
+  try { code = new URL(raw).searchParams.get('code'); } catch { setErr('setup', 'That doesn\'t look like a valid URL — paste the full thing from your address bar.'); return; }
+  if (!code) { setErr('setup', 'No code found in that URL. Make sure you\'re pasting the full redirect URL.'); return; }
+  setErr('setup', '');
+  try {
+    const d = await post('https://www.strava.com/oauth/token', { client_id: cid, client_secret: csec, code, grant_type: 'authorization_code' });
+    if (d.access_token) { token = d.access_token; rtoken = d.refresh_token; launchDash(); }
+    else setErr('setup', 'Strava error: ' + (d.message || JSON.stringify(d)));
+  } catch { setErr('setup', 'Network error — check your internet connection.'); }
+}
+
+async function refreshTok() {
+  if (!rtoken) return false;
+  try {
+    const d = await post('https://www.strava.com/oauth/token', { client_id: cid, client_secret: csec, refresh_token: rtoken, grant_type: 'refresh_token' });
+    if (d.access_token) { token = d.access_token; rtoken = d.refresh_token; return true; }
+  } catch {}
+  return false;
+}
+
+function signOut() {
+  token = rtoken = cid = csec = null;
+  document.getElementById('dash').style.display = 'none';
+  document.getElementById('setup').style.display = 'block';
+  document.getElementById('rurl').value = '';
+}
+
+// ── Dashboard ────────────────────────────────────────────────
+function launchDash() {
+  document.getElementById('setup').style.display = 'none';
+  document.getElementById('dash').style.display = 'block';
+  weekStart = mondayOf(new Date());
+  loadWeek();
+}
+
+async function loadWeek() {
+  show('loading'); hide('dash-main'); hide('dash-err');
+  setLoadMsg('Fetching your activities…');
+  updateWkLabel();
+  const wEnd = new Date(weekStart); wEnd.setDate(wEnd.getDate() + 7);
+  const after = ts(weekStart), before = ts(wEnd);
+  let summaries;
+  try {
+    let r = await authFetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&before=${before}&per_page=200`);
+    if (r.status === 401) {
+      if (await refreshTok()) r = await authFetch(`https://www.strava.com/api/v3/athlete/activities?after=${after}&before=${before}&per_page=200`);
+      else { setErr('dash', 'Session expired — please disconnect and reconnect.'); return; }
+    }
+    summaries = await r.json();
+    if (!Array.isArray(summaries)) { setErr('dash', 'Strava error: ' + JSON.stringify(summaries)); return; }
+  } catch(e) { setErr('dash', 'Network error: ' + e.message); return; }
+
+  // The list endpoint returns summary objects — calories is stripped out.
+  // Fetch each activity individually in parallel to get the full detail (including calories).
+  let acts = summaries;
+  if (summaries.length > 0) {
+    setLoadMsg(`Loading calorie data for ${summaries.length} activit${summaries.length === 1 ? 'y' : 'ies'}…`);
+    try {
+      const detailed = await Promise.all(
+        summaries.map(async a => {
+          try {
+            const r = await authFetch(`https://www.strava.com/api/v3/activities/${a.id}`);
+            if (r.ok) return await r.json();
+          } catch {}
+          return a; // fall back to summary if detail fetch fails
+        })
+      );
+      acts = detailed;
+    } catch(e) {
+      // If detail fetching fails wholesale, continue with summaries (no calories)
+      acts = summaries;
+    }
+  }
+
+  hide('loading'); show('dash-main');
+  renderCards(acts);
+  renderDaily(acts);
+  renderCharts(acts);
+  renderActs(acts);
+}
+
+function shiftWeek(d) {
+  weekStart = new Date(weekStart);
+  weekStart.setDate(weekStart.getDate() + d * 7);
+  loadWeek();
+}
+
+// ── Cards ────────────────────────────────────────────────────
+function renderCards(acts) {
+  const cals = sum(acts, 'calories');
+  const distKm = sum(acts, 'distance') / 1000;
+  const elevM  = sum(acts, 'total_elevation_gain');
+  const moveSec = sum(acts, 'moving_time');
+  const hrArr = acts.filter(a => a.average_heartrate).map(a => a.average_heartrate);
+  const avgHR = hrArr.length ? Math.round(avg(hrArr)) : null;
+  const runs = acts.filter(a => a.type === 'Run' && a.distance > 0 && a.moving_time > 0);
+  let paceStr = '—';
+  if (runs.length) {
+    const sPerKm = sum(runs, 'moving_time') / (sum(runs, 'distance') / 1000);
+    paceStr = fmtPace(sPerKm);
+  }
+  const data = [
+    { ic: '🔥', val: cals > 0 ? cals.toLocaleString() : '—', lbl: 'Total Calories', sub: 'kcal', col: '#FC4C02' },
+    { ic: '📍', val: distKm > 0 ? distKm.toFixed(1) : '—', lbl: 'Distance', sub: 'km', col: '#2196F3' },
+    { ic: '⛰️', val: elevM > 0 ? Math.round(elevM).toLocaleString() : '—', lbl: 'Elevation', sub: 'metres', col: '#4CAF50' },
+    { ic: '⏱️', val: moveSec > 0 ? fmtDur(moveSec) : '—', lbl: 'Active Time', sub: 'total', col: '#9C27B0' },
+    { ic: '💨', val: paceStr, lbl: 'Avg Run Pace', sub: 'min/km', col: '#FF9800' },
+    { ic: '❤️', val: avgHR ?? '—', lbl: 'Avg Heart Rate', sub: 'bpm', col: '#E91E63' },
+  ];
+  document.getElementById('cards').innerHTML = data.map(c => `
+    <div class="s-card">
+      <div class="s-icon">${c.ic}</div>
+      <div class="s-val" style="color:${c.col}">${c.val}</div>
+      <div class="s-lbl">${c.lbl}</div>
+      <div class="s-sub">${c.sub}</div>
+    </div>`).join('');
+}
+
+// ── Daily Summary ─────────────────────────────────────────────
+function renderDaily(acts) {
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const cals = new Array(7).fill(0);
+  const mins = new Array(7).fill(0);
+  acts.forEach(a => {
+    const dow = dowMon(new Date(a.start_date_local));
+    cals[dow] += a.calories || 0;
+    mins[dow] += Math.round((a.moving_time || 0) / 60);
+  });
+  const today = dowMon(new Date());
+  const isThisWeek = weekStart.toDateString() === mondayOf(new Date()).toDateString();
+  document.getElementById('daily-grid').innerHTML = DAYS.map((d,i) => {
+    const active = cals[i] > 0 || mins[i] > 0;
+    const isToday = isThisWeek && i === today;
+    return `<div class="day-cell ${active ? 'active' : ''}">
+      <div class="day-name" style="${isToday ? 'color:var(--orange)' : ''}">${d}${isToday ? ' ●' : ''}</div>
+      <div class="day-cal">${cals[i] > 0 ? cals[i].toLocaleString() : '—'}</div>
+      <div class="day-cal-lbl">kcal</div>
+      <div class="day-time" style="${mins[i] > 0 ? 'color:var(--text)' : 'color:var(--muted)'}">${mins[i] > 0 ? fmtDur(mins[i]*60) : '—'}</div>
+      <div class="day-time-lbl">active</div>
+    </div>`;
+  }).join('');
+}
+
+// ── Charts ────────────────────────────────────────────────────
+function renderCharts(acts) {
+  const DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  const cals = new Array(7).fill(0);
+  const mins = new Array(7).fill(0);
+  acts.forEach(a => {
+    const dow = dowMon(new Date(a.start_date_local));
+    cals[dow] += a.calories || 0;
+    mins[dow] += Math.round((a.moving_time || 0) / 60);
+  });
+  const opts = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: { legend: { display: false }, tooltip: { callbacks: {
+      label: ctx => ctx.dataset.label === 'cal' ? ` ${ctx.raw.toLocaleString()} kcal` : ` ${ctx.raw} min`
+    }}},
+    scales: {
+      x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#777', font: { size: 12 } } },
+      y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#777', font: { size: 11 } }, beginAtZero: true }
+    }
+  };
+  if (calChart) calChart.destroy();
+  if (tmChart)  tmChart.destroy();
+  calChart = new Chart(document.getElementById('cal-chart'), {
+    type: 'bar',
+    data: { labels: DAYS, datasets: [{ label: 'cal', data: cals,
+      backgroundColor: cals.map(v => v > 0 ? 'rgba(252,76,2,0.82)' : 'rgba(42,42,42,0.5)'),
+      borderRadius: 6, borderSkipped: false }] },
+    options: opts
+  });
+  tmChart = new Chart(document.getElementById('time-chart'), {
+    type: 'bar',
+    data: { labels: DAYS, datasets: [{ label: 'time', data: mins,
+      backgroundColor: mins.map(v => v > 0 ? 'rgba(156,39,176,0.82)' : 'rgba(42,42,42,0.5)'),
+      borderRadius: 6, borderSkipped: false }] },
+    options: opts
+  });
+}
+
+// ── Activity List ─────────────────────────────────────────────
+function renderActs(acts) {
+  const el = document.getElementById('act-list');
+  if (!acts.length) {
+    el.innerHTML = `<div class="empty"><div class="empty-ic">😴</div><p>No activities recorded this week.</p></div>`;
+    return;
+  }
+  const sorted = [...acts].sort((a,b) => new Date(b.start_date_local) - new Date(a.start_date_local));
+  el.innerHTML = sorted.map(a => {
+    const {ic, col} = actIcon(a.type);
+    const dist = a.distance ? (a.distance/1000).toFixed(2) + ' km' : '—';
+    const dt = new Date(a.start_date_local).toLocaleDateString('en-GB', {weekday:'short', day:'numeric', month:'short'});
+    const cal = a.calories ? a.calories.toLocaleString() : '—';
+    const hr = a.average_heartrate ? Math.round(a.average_heartrate) + ' bpm' : '—';
+    let speed = '—';
+    if (a.type === 'Run' && a.distance > 0 && a.moving_time > 0) speed = fmtPace(a.moving_time / (a.distance/1000)) + '/km';
+    else if ((a.type === 'Ride' || a.type === 'VirtualRide') && a.distance > 0 && a.moving_time > 0) speed = ((a.distance/1000)/(a.moving_time/3600)).toFixed(1) + ' km/h';
+    return `<div class="act-row">
+      <div class="act-name-col">
+        <div class="act-ic" style="background:${col}1a">${ic}</div>
+        <div class="act-nm"><h4>${a.name}</h4><p>${dt} · ${a.type}</p></div>
+      </div>
+      <div class="act-stat"><div class="act-stat-v">${dist}</div><div class="act-stat-l">Distance</div></div>
+      <div class="act-stat"><div class="act-stat-v">${fmtDur(a.moving_time||0)}</div><div class="act-stat-l">Time</div></div>
+      <div class="act-stat"><div class="act-stat-v" style="color:#FC4C02">${cal}</div><div class="act-stat-l">Calories</div></div>
+      <div class="act-stat"><div class="act-stat-v">${hr}</div><div class="act-stat-l">Avg HR</div></div>
+      <div class="act-stat"><div class="act-stat-v">${speed}</div><div class="act-stat-l">Pace/Speed</div></div>
+    </div>`;
+  }).join('');
+}
+
+// ── Utilities ─────────────────────────────────────────────────
+function mondayOf(d) {
+  const r = new Date(d);
+  const day = r.getDay();
+  r.setDate(r.getDate() + (day === 0 ? -6 : 1 - day));
+  r.setHours(0,0,0,0); return r;
+}
+function dowMon(d) { return (d.getDay() + 6) % 7; } // Mon=0 … Sun=6
+function ts(d) { return Math.floor(d.getTime()/1000); }
+function sum(arr, key) { return arr.reduce((s,a) => s + (a[key]||0), 0); }
+function avg(arr) { return arr.reduce((s,v)=>s+v,0)/arr.length; }
+function fmtDur(sec) { const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60); return h>0?`${h}h ${m}m`:`${m}m`; }
+function fmtPace(sPerKm) { const m=Math.floor(sPerKm/60),s=Math.round(sPerKm%60); return `${m}:${s.toString().padStart(2,'0')}`; }
+function show(id) { document.getElementById(id).style.display='block'; }
+function hide(id) { document.getElementById(id).style.display='none'; }
+function setLoadMsg(msg) { const el = document.getElementById('loading-msg'); if (el) el.textContent = msg; }
+function setErr(ctx, msg) {
+  const el = document.getElementById(ctx==='setup'?'setup-err':'dash-err');
+  if (msg) { el.textContent=msg; el.style.display='block'; }
+  else el.style.display='none';
+}
+function updateWkLabel() {
+  const e = new Date(weekStart); e.setDate(e.getDate()+6);
+  const f = d => d.toLocaleDateString('en-GB',{day:'numeric',month:'short'});
+  document.getElementById('wlbl').textContent = f(weekStart)+' – '+f(e);
+}
+async function post(url, body) {
+  const r = await fetch(url, { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  return r.json();
+}
+async function authFetch(url) {
+  return fetch(url, { headers: { Authorization: `Bearer ${token}` } });
+}
+function actIcon(type) {
+  const m = {
+    Run:{ic:'🏃',col:'#FC4C02'}, Ride:{ic:'🚴',col:'#2196F3'}, VirtualRide:{ic:'🚴',col:'#00BCD4'},
+    Swim:{ic:'🏊',col:'#03A9F4'}, Walk:{ic:'🚶',col:'#4CAF50'}, Hike:{ic:'🥾',col:'#8BC34A'},
+    WeightTraining:{ic:'🏋️',col:'#9C27B0'}, Yoga:{ic:'🧘',col:'#E91E63'}, Workout:{ic:'💪',col:'#FF5722'},
+    Crossfit:{ic:'🔥',col:'#FF5722'}, Rowing:{ic:'🚣',col:'#009688'}, Tennis:{ic:'🎾',col:'#CDDC39'},
+    Soccer:{ic:'⚽',col:'#4CAF50'}, EBikeRide:{ic:'⚡',col:'#FFC107'}, MountainBikeRide:{ic:'🚵',col:'#795548'},
+    RockClimbing:{ic:'🧗',col:'#A5D6A7'}, Skiing:{ic:'⛷️',col:'#90CAF9'}, Snowboard:{ic:'🏂',col:'#B3E5FC'},
+    StandUpPaddling:{ic:'🏄',col:'#29B6F6'}, Surfing:{ic:'🏄',col:'#0288D1'},
+  };
+  return m[type] || {ic:'🏅',col:'#9E9E9E'};
+}
+</script>
+</body>
+</html>
